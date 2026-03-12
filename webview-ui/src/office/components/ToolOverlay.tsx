@@ -250,8 +250,8 @@ export function ToolOverlay({
               top: screenY,
               transform: 'translateX(-50%)',
               background: 'rgba(14, 14, 22, 0.85)',
-              border: '2px solid var(--pixel-border)',
-              padding: '1px 5px',
+              border: '1px solid var(--pixel-border)',
+              padding: '0px 3px',
               whiteSpace: 'nowrap',
               pointerEvents: 'none',
               boxShadow: 'var(--pixel-shadow)',
@@ -259,7 +259,7 @@ export function ToolOverlay({
             }}
           >
             <span
-              style={{ fontSize: '16px', color: 'var(--vscode-foreground)', fontStyle: 'italic' }}
+              style={{ fontSize: '10px', color: 'var(--vscode-foreground)', fontStyle: 'italic' }}
             >
               {sub.role}
             </span>

@@ -17,7 +17,8 @@ import {
 } from './timerManager.js';
 import type { AgentState } from './types.js';
 
-export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
+export const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
+export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
@@ -40,7 +41,8 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       return 'Fetching web content';
     case 'WebSearch':
       return 'Searching the web';
-    case 'Task': {
+    case 'Task':
+    case 'Agent': {
       const desc = typeof input.description === 'string' ? input.description : '';
       return desc
         ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}`
@@ -96,12 +98,15 @@ export function processTranscriptLine(
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
-            const gsdMeta =
-              toolName === 'Task'
-                ? classifyGsdAgent(
-                    typeof block.input?.prompt === 'string' ? block.input.prompt : '',
-                  )
-                : null;
+            const isSubagentTool = SUBAGENT_TOOLS.has(toolName);
+            const gsdMeta = isSubagentTool
+              ? classifyGsdAgent(typeof block.input?.prompt === 'string' ? block.input.prompt : '')
+              : null;
+            if (isSubagentTool) {
+              console.log(
+                `[Pixel Agents] Agent ${agentId} SUBAGENT detected: tool=${toolName} id=${block.id} status="${status}" gsdRole=${gsdMeta?.role} gsdHueShift=${gsdMeta?.hueShift}`,
+              );
+            }
             webview?.postMessage({
               type: 'agentToolStart',
               id: agentId,
@@ -133,8 +138,8 @@ export function processTranscriptLine(
             if (block.type === 'tool_result' && block.tool_use_id) {
               console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
               const completedToolId = block.tool_use_id;
-              // If the completed tool was a Task, clear its subagent tools
-              if (agent.activeToolNames.get(completedToolId) === 'Task') {
+              // If the completed tool was a Task/Agent, clear its subagent tools
+              if (SUBAGENT_TOOLS.has(agent.activeToolNames.get(completedToolId) || '')) {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
                 webview?.postMessage({
@@ -228,8 +233,8 @@ function processProgressRecord(
     return;
   }
 
-  // Verify parent is an active Task tool (agent_progress handling)
-  if (agent.activeToolNames.get(parentToolId) !== 'Task') return;
+  // Verify parent is an active Task/Agent tool (agent_progress handling)
+  if (!SUBAGENT_TOOLS.has(agent.activeToolNames.get(parentToolId) || '')) return;
 
   const msg = data.message as Record<string, unknown> | undefined;
   if (!msg) return;

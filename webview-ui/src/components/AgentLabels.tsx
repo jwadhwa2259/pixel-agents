@@ -62,15 +62,18 @@ export function AgentLabels({
         const ch = officeState.characters.get(id);
         if (!ch) return null;
 
+        const isSub = ch.isSubagent;
+
         // Character position: device pixels → CSS pixels (follow sitting offset)
+        // Sub-agents get a larger offset to keep the label well above the sprite
         const sittingOffset = ch.state === CharacterState.TYPE ? 6 : 0;
+        const verticalOffset = isSub ? 38 : 24;
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
-        const screenY = (deviceOffsetY + (ch.y + sittingOffset - 24) * zoom) / dpr;
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset - verticalOffset) * zoom) / dpr;
 
         const status = agentStatuses[id];
         const isWaiting = status === 'waiting';
         const isActive = ch.isActive;
-        const isSub = ch.isSubagent;
 
         let dotColor = 'transparent';
         if (isWaiting) {
@@ -110,14 +113,14 @@ export function AgentLabels({
             )}
             <span
               style={{
-                fontSize: isSub ? '16px' : '18px',
+                fontSize: isSub ? '11px' : '18px',
                 fontStyle: isSub ? 'italic' : undefined,
-                color: 'var(--vscode-foreground)',
+                color: isSub ? 'var(--pixel-text-dim)' : 'var(--vscode-foreground)',
                 background: 'rgba(30,30,46,0.7)',
-                padding: '1px 4px',
+                padding: isSub ? '0px 3px' : '1px 4px',
                 borderRadius: 2,
                 whiteSpace: 'nowrap',
-                maxWidth: isSub ? 120 : undefined,
+                maxWidth: isSub ? 80 : undefined,
                 overflow: isSub ? 'hidden' : undefined,
                 textOverflow: isSub ? 'ellipsis' : undefined,
               }}

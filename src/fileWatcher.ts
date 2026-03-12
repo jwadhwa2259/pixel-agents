@@ -88,6 +88,25 @@ export function readNewLines(
 
     for (const line of lines) {
       if (!line.trim()) continue;
+      try {
+        const peek = JSON.parse(line);
+        if (peek.type === 'assistant') {
+          const tools = (peek.message?.content || [])
+            .filter((b: { type: string }) => b.type === 'tool_use')
+            .map((b: { name: string }) => b.name);
+          if (tools.length) {
+            console.log(
+              `[Pixel Agents] Agent ${agentId} processing line: assistant tool_use [${tools.join(', ')}]`,
+            );
+          }
+        } else if (peek.type === 'progress') {
+          console.log(
+            `[Pixel Agents] Agent ${agentId} processing line: progress type=${peek.data?.type} parentToolUseID=${peek.parentToolUseID}`,
+          );
+        }
+      } catch {
+        /* ignore peek errors */
+      }
       processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
     }
   } catch (e) {
