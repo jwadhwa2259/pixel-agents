@@ -261,6 +261,7 @@ function adoptTerminalForFile(
     activeToolNames: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    gsdToolMeta: new Map(),
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
@@ -316,10 +317,10 @@ export function reassignAgentToFile(
     /* ignore */
   }
 
-  // Clear activity
+  // Clear activity (session clear — remove sub-agents too)
   cancelWaitingTimer(agentId, waitingTimers);
   cancelPermissionTimer(agentId, permissionTimers);
-  clearAgentActivity(agent, agentId, permissionTimers, webview);
+  clearAgentActivity(agent, agentId, permissionTimers, webview, true);
 
   // Swap to new file
   agent.jsonlFile = newFilePath;

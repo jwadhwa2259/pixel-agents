@@ -77,6 +77,7 @@ export async function launchNewTerminal(
     activeToolNames: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    gsdToolMeta: new Map(),
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
@@ -232,6 +233,7 @@ export function restoreAgents(
       activeToolNames: new Map(),
       activeSubagentToolIds: new Map(),
       activeSubagentToolNames: new Map(),
+      gsdToolMeta: new Map(),
       isWaiting: false,
       permissionSent: false,
       hadToolsInTurn: false,
@@ -375,11 +377,13 @@ export function sendCurrentAgentStatuses(
   for (const [agentId, agent] of agents) {
     // Re-send active tools
     for (const [toolId, status] of agent.activeToolStatuses) {
+      const gsdMeta = agent.gsdToolMeta.get(toolId);
       webview.postMessage({
         type: 'agentToolStart',
         id: agentId,
         toolId,
         status,
+        ...(gsdMeta ? { gsdRole: gsdMeta.role, gsdHueShift: gsdMeta.hueShift } : {}),
       });
     }
     // Re-send waiting status

@@ -49,6 +49,8 @@ export class OfficeState {
   subagentIdMap: Map<string, number> = new Map();
   /** Reverse lookup: sub-agent character ID → parent info */
   subagentMeta: Map<number, { parentAgentId: number; parentToolId: string }> = new Map();
+  /** Preferred seat for the first (CEO) agent */
+  primarySeatId: string | null = null;
   private nextSubagentId = -1;
 
   constructor(layout?: OfficeLayout) {
@@ -58,6 +60,7 @@ export class OfficeState {
     this.blockedTiles = getBlockedTiles(this.layout.furniture);
     this.furniture = layoutToFurnitureInstances(this.layout.furniture);
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
+    this.primarySeatId = this.layout.primarySeatId ?? null;
   }
 
   /** Rebuild all derived state from a new layout. Reassigns existing characters.
@@ -69,6 +72,7 @@ export class OfficeState {
     this.blockedTiles = getBlockedTiles(layout.furniture);
     this.rebuildFurnitureInstances();
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
+    this.primarySeatId = layout.primarySeatId ?? null;
 
     // Shift character positions when grid expands left/up
     if (shift && (shift.col !== 0 || shift.row !== 0)) {
@@ -226,12 +230,22 @@ export class OfficeState {
       hueShift = pick.hueShift;
     }
 
-    // Try preferred seat first, then any free seat
+    // Try preferred seat first, then primary seat for first agent, then any free seat
     let seatId: string | null = null;
     if (preferredSeatId && this.seats.has(preferredSeatId)) {
       const seat = this.seats.get(preferredSeatId)!;
       if (!seat.assigned) {
         seatId = preferredSeatId;
+      }
+    }
+    // If no preferred seat and this is the first non-sub-agent, try primary seat
+    if (!seatId && this.primarySeatId && this.seats.has(this.primarySeatId)) {
+      const hasOtherAgents = Array.from(this.characters.values()).some((ch) => !ch.isSubagent);
+      if (!hasOtherAgents) {
+        const seat = this.seats.get(this.primarySeatId)!;
+        if (!seat.assigned) {
+          seatId = this.primarySeatId;
+        }
       }
     }
     if (!seatId) {
@@ -440,6 +454,9 @@ export class OfficeState {
 
     this.subagentIdMap.set(key, id);
     this.subagentMeta.set(id, { parentAgentId, parentToolId });
+    console.log(
+      `[OfficeState] Added sub-agent ${id} (parent=${parentAgentId}, tool=${parentToolId}, seat=${bestSeatId})`,
+    );
     return id;
   }
 
@@ -448,6 +465,9 @@ export class OfficeState {
     const key = `${parentAgentId}:${parentToolId}`;
     const id = this.subagentIdMap.get(key);
     if (id === undefined) return;
+    console.log(
+      `[OfficeState] Removing sub-agent ${id} (parent=${parentAgentId}, tool=${parentToolId})`,
+    );
 
     const ch = this.characters.get(id);
     if (ch) {
@@ -476,6 +496,7 @@ export class OfficeState {
 
   /** Remove all sub-agents belonging to a parent agent */
   removeAllSubagents(parentAgentId: number): void {
+    console.log(`[OfficeState] Removing all sub-agents for parent=${parentAgentId}`);
     const toRemove: string[] = [];
     for (const [key, id] of this.subagentIdMap) {
       const meta = this.subagentMeta.get(id);
@@ -506,6 +527,30 @@ export class OfficeState {
     }
     for (const key of toRemove) {
       this.subagentIdMap.delete(key);
+    }
+  }
+
+  /** Deactivate a specific sub-agent (set to idle wander) without removing it */
+  deactivateSubagent(parentAgentId: number, parentToolId: string): void {
+    const key = `${parentAgentId}:${parentToolId}`;
+    const id = this.subagentIdMap.get(key);
+    if (id === undefined) return;
+    console.log(
+      `[OfficeState] Deactivating sub-agent ${id} (parent=${parentAgentId}, tool=${parentToolId})`,
+    );
+    this.setAgentTool(id, null);
+    this.setAgentActive(id, false);
+  }
+
+  /** Deactivate all sub-agents of a parent (set to idle wander) without removing them */
+  deactivateAllSubagents(parentAgentId: number): void {
+    for (const [, id] of this.subagentIdMap) {
+      const meta = this.subagentMeta.get(id);
+      if (meta && meta.parentAgentId === parentAgentId) {
+        console.log(`[OfficeState] Deactivating sub-agent ${id} (parent=${parentAgentId})`);
+        this.setAgentTool(id, null);
+        this.setAgentActive(id, false);
+      }
     }
   }
 

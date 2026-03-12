@@ -233,6 +233,7 @@ export function useExtensionMessages(
         });
       } else if (msg.type === 'agentToolsClear') {
         const id = msg.id as number;
+        const clearSubs = !!(msg.clearSubagents as boolean | undefined);
         setAgentTools((prev) => {
           if (!(id in prev)) return prev;
           const next = { ...prev };
@@ -245,9 +246,16 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
-        // Remove all sub-agent characters belonging to this agent
-        os.removeAllSubagents(id);
-        setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        if (clearSubs) {
+          // Session clear or terminal close — remove all sub-agents
+          console.log(`[Webview] agentToolsClear: removing all sub-agents for agent ${id}`);
+          os.removeAllSubagents(id);
+          setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        } else {
+          // Normal turn end — deactivate sub-agents (keep them visible, idle wander)
+          console.log(`[Webview] agentToolsClear: deactivating sub-agents for agent ${id}`);
+          os.deactivateAllSubagents(id);
+        }
         os.setAgentTool(id, null);
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
@@ -361,11 +369,11 @@ export function useExtensionMessages(
           }
           return { ...prev, [id]: next };
         });
-        // Remove sub-agent character
-        os.removeSubagent(id, parentToolId);
-        setSubagentCharacters((prev) =>
-          prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
+        // Deactivate sub-agent character (keep visible, idle wander)
+        console.log(
+          `[Webview] subagentClear: deactivating sub-agent for agent ${id}, tool ${parentToolId}`,
         );
+        os.deactivateSubagent(id, parentToolId);
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{
           down: string[][][];

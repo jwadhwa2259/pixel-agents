@@ -140,6 +140,8 @@ export interface OfficeLayout {
   furniture: PlacedFurniture[];
   /** Per-tile color settings, parallel to tiles array. null = wall/no color */
   tileColors?: Array<FloorColor | null>;
+  /** Preferred seat for the first (CEO) agent */
+  primarySeatId?: string;
 }
 
 export interface Character {

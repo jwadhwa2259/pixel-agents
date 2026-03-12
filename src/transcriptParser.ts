@@ -106,6 +106,9 @@ export function processTranscriptLine(
               console.log(
                 `[Pixel Agents] Agent ${agentId} SUBAGENT detected: tool=${toolName} id=${block.id} status="${status}" gsdRole=${gsdMeta?.role} gsdHueShift=${gsdMeta?.hueShift}`,
               );
+              if (gsdMeta) {
+                agent.gsdToolMeta.set(block.id, gsdMeta);
+              }
             }
             webview?.postMessage({
               type: 'agentToolStart',
@@ -142,6 +145,7 @@ export function processTranscriptLine(
               if (SUBAGENT_TOOLS.has(agent.activeToolNames.get(completedToolId) || '')) {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
+                agent.gsdToolMeta.delete(completedToolId);
                 webview?.postMessage({
                   type: 'subagentClear',
                   id: agentId,
@@ -161,11 +165,9 @@ export function processTranscriptLine(
               }, TOOL_DONE_DELAY_MS);
             }
           }
-          // All tools completed — allow text-idle timer as fallback
-          // for turn-end detection when turn_duration is not emitted
-          if (agent.activeToolIds.size === 0) {
-            agent.hadToolsInTurn = false;
-          }
+          // Note: hadToolsInTurn is NOT reset here. It stays true until
+          // turn_duration or a new user prompt, preventing the text-idle
+          // timer from firing prematurely between sequential Agent tool calls.
         } else {
           // New user text prompt — new turn starting
           cancelWaitingTimer(agentId, waitingTimers);
@@ -189,7 +191,8 @@ export function processTranscriptLine(
         agent.activeToolNames.clear();
         agent.activeSubagentToolIds.clear();
         agent.activeSubagentToolNames.clear();
-        webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+        agent.gsdToolMeta.clear();
+        webview?.postMessage({ type: 'agentToolsClear', id: agentId, clearSubagents: false });
       }
 
       agent.isWaiting = true;

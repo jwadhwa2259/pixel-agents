@@ -8,6 +8,7 @@ export function clearAgentActivity(
   agentId: number,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
+  clearSubagents?: boolean,
 ): void {
   if (!agent) return;
   agent.activeToolIds.clear();
@@ -18,7 +19,7 @@ export function clearAgentActivity(
   agent.isWaiting = false;
   agent.permissionSent = false;
   cancelPermissionTimer(agentId, permissionTimers);
-  webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+  webview?.postMessage({ type: 'agentToolsClear', id: agentId, clearSubagents: !!clearSubagents });
   webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
 }
 
