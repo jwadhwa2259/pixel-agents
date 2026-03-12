@@ -28,6 +28,7 @@ import {
   SELECTED_OUTLINE_ALPHA,
   SELECTION_DASH_PATTERN,
   SELECTION_HIGHLIGHT_COLOR,
+  TALK_BUBBLE_FADE_DURATION_SEC,
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
 } from '../../constants.js';
@@ -35,6 +36,7 @@ import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTi
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js';
 import {
   BUBBLE_PERMISSION_SPRITE,
+  BUBBLE_TALK_SPRITE,
   BUBBLE_WAITING_SPRITE,
   getCharacterSprites,
 } from '../sprites/spriteData.js';
@@ -467,13 +469,21 @@ export function renderBubbles(
   for (const ch of characters) {
     if (!ch.bubbleType) continue;
 
-    const sprite =
-      ch.bubbleType === 'permission' ? BUBBLE_PERMISSION_SPRITE : BUBBLE_WAITING_SPRITE;
+    let sprite: SpriteData;
+    if (ch.bubbleType === 'permission') {
+      sprite = BUBBLE_PERMISSION_SPRITE;
+    } else if (ch.bubbleType === 'talk') {
+      sprite = BUBBLE_TALK_SPRITE;
+    } else {
+      sprite = BUBBLE_WAITING_SPRITE;
+    }
 
-    // Compute opacity: permission = full, waiting = fade in last 0.5s
+    // Compute opacity: permission = full, waiting/talk = fade in last duration
     let alpha = 1.0;
     if (ch.bubbleType === 'waiting' && ch.bubbleTimer < BUBBLE_FADE_DURATION_SEC) {
       alpha = ch.bubbleTimer / BUBBLE_FADE_DURATION_SEC;
+    } else if (ch.bubbleType === 'talk' && ch.bubbleTimer < TALK_BUBBLE_FADE_DURATION_SEC) {
+      alpha = ch.bubbleTimer / TALK_BUBBLE_FADE_DURATION_SEC;
     }
 
     const cached = getCachedSprite(sprite, zoom);

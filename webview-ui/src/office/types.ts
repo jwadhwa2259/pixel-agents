@@ -132,6 +132,30 @@ export interface PlacedFurniture {
   color?: FloorColor;
 }
 
+export const ZoneType = {
+  WORKSPACE: 'workspace',
+  CEO_ROOM: 'ceo_room',
+  KITCHEN: 'kitchen',
+} as const;
+export type ZoneType = (typeof ZoneType)[keyof typeof ZoneType];
+
+export interface Zone {
+  id: string;
+  name: string;
+  type: ZoneType;
+  minCol: number;
+  maxCol: number;
+  minRow: number;
+  maxRow: number;
+}
+
+export const SubagentPhase = {
+  WORKING: 'working',
+  REPORTING: 'reporting',
+  SOCIALIZING: 'socializing',
+} as const;
+export type SubagentPhase = (typeof SubagentPhase)[keyof typeof SubagentPhase];
+
 export interface OfficeLayout {
   version: 1;
   cols: number;
@@ -142,6 +166,8 @@ export interface OfficeLayout {
   tileColors?: Array<FloorColor | null>;
   /** Preferred seat for the first (CEO) agent */
   primarySeatId?: string;
+  /** Named zones for sub-agent lifecycle behavior */
+  zones?: Zone[];
 }
 
 export interface Character {
@@ -180,8 +206,8 @@ export interface Character {
   /** Assigned seat uid, or null if no seat */
   seatId: string | null;
   /** Active speech bubble type, or null if none showing */
-  bubbleType: 'permission' | 'waiting' | null;
-  /** Countdown timer for bubble (waiting: 2→0, permission: unused) */
+  bubbleType: 'permission' | 'waiting' | 'talk' | null;
+  /** Countdown timer for bubble (waiting: 2→0, permission: unused, talk: 3→0) */
   bubbleTimer: number;
   /** Timer to stay seated while inactive after seat reassignment (counts down to 0) */
   seatTimer: number;
@@ -197,4 +223,12 @@ export interface Character {
   matrixEffectSeeds: number[];
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  /** Current lifecycle phase for sub-agents (null for main agents) */
+  subagentPhase: SubagentPhase | null;
+  /** Countdown timer for reporting phase (talk bubble duration) */
+  reportingTimer: number;
+  /** Target tile for current phase transition (e.g. approach parent, walk to kitchen) */
+  phaseTarget: { col: number; row: number } | null;
+  /** Whether this sub-agent has already shown its reporting talk bubble */
+  hasReported: boolean;
 }

@@ -6,6 +6,7 @@ import type {
   PlacedFurniture,
   Seat,
   TileType as TileTypeVal,
+  Zone,
 } from '../types.js';
 import {
   DEFAULT_COLS,
@@ -14,6 +15,7 @@ import {
   FurnitureType,
   TILE_SIZE,
   TileType,
+  ZoneType,
 } from '../types.js';
 import { getCatalogEntry } from './furnitureCatalog.js';
 
@@ -307,7 +309,49 @@ export function createDefaultLayout(): OfficeLayout {
     { uid: 'chair-r-right', type: FurnitureType.CHAIR, col: 15, row: 3 },
   ];
 
-  return { version: 1, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, tiles, tileColors, furniture };
+  // Default zones matching the layout geometry:
+  // Left room (cols 1-9, rows 1-9) = CEO room
+  // Right room (cols 11-18, rows 1-9) = Workspace
+  // Kitchen area = right-room carpet zone (cols 15-18, rows 7-9)
+  const zones: Zone[] = [
+    {
+      id: 'ceo-room',
+      name: 'CEO Room',
+      type: ZoneType.CEO_ROOM,
+      minCol: 1,
+      maxCol: 9,
+      minRow: 1,
+      maxRow: 9,
+    },
+    {
+      id: 'workspace',
+      name: 'Workspace',
+      type: ZoneType.WORKSPACE,
+      minCol: 11,
+      maxCol: 18,
+      minRow: 1,
+      maxRow: 9,
+    },
+    {
+      id: 'kitchen',
+      name: 'Kitchen',
+      type: ZoneType.KITCHEN,
+      minCol: 15,
+      maxCol: 18,
+      minRow: 7,
+      maxRow: 9,
+    },
+  ];
+
+  return {
+    version: 1,
+    cols: DEFAULT_COLS,
+    rows: DEFAULT_ROWS,
+    tiles,
+    tileColors,
+    furniture,
+    zones,
+  };
 }
 
 /** Serialize layout to JSON string */

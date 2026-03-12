@@ -33,6 +33,25 @@ export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
 
 // ── GSD Sub-Agent Classification ────────────────────────────
+
+/** Maps subagent_type field to role/hueShift (checked FIRST, before prompt patterns) */
+export const GSD_SUBAGENT_TYPE_MAP: Record<string, { role: string; hueShift: number }> = {
+  'gsd-phase-researcher': { role: 'Researcher', hueShift: 200 },
+  'gsd-project-researcher': { role: 'Researcher', hueShift: 200 },
+  'gsd-planner': { role: 'Planner', hueShift: 120 },
+  'gsd-plan-checker': { role: 'Checker', hueShift: 160 },
+  'gsd-integration-checker': { role: 'Checker', hueShift: 160 },
+  'gsd-executor': { role: 'Executor', hueShift: 30 },
+  'gsd-verifier': { role: 'Verifier', hueShift: 280 },
+  'gsd-debugger': { role: 'Debugger', hueShift: 0 },
+  'gsd-codebase-mapper': { role: 'Mapper', hueShift: 60 },
+  'gsd-roadmapper': { role: 'Roadmapper', hueShift: 120 },
+  'gsd-research-synthesizer': { role: 'Synthesizer', hueShift: 240 },
+  'gsd-nyquist-auditor': { role: 'Auditor', hueShift: 160 },
+  Explore: { role: 'Explorer', hueShift: 200 },
+  Plan: { role: 'Planner', hueShift: 120 },
+};
+
 export const GSD_AGENT_ROLES = [
   { patterns: ['research', 'investigate'], role: 'Researcher', hueShift: 200 },
   { patterns: ['plan', 'create task', 'create plans'], role: 'Planner', hueShift: 120 },
@@ -46,7 +65,16 @@ export const GSD_AGENT_ROLES = [
 
 export const GSD_DEFAULT_ROLE = { role: 'Agent', hueShift: 90 } as const;
 
-export function classifyGsdAgent(prompt: string): { role: string; hueShift: number } {
+export function classifyGsdAgent(
+  prompt: string,
+  subagentType?: string,
+): { role: string; hueShift: number } {
+  // Check subagent_type FIRST (definitive)
+  if (subagentType) {
+    const mapped = GSD_SUBAGENT_TYPE_MAP[subagentType];
+    if (mapped) return { role: mapped.role, hueShift: mapped.hueShift };
+  }
+  // Fall back to prompt-based pattern matching
   const lower = prompt.toLowerCase();
   for (const entry of GSD_AGENT_ROLES) {
     if (entry.patterns.some((p) => lower.includes(p))) {

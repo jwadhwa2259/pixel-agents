@@ -99,8 +99,15 @@ export function processTranscriptLine(
               hasNonExemptTool = true;
             }
             const isSubagentTool = SUBAGENT_TOOLS.has(toolName);
+            const subagentType =
+              typeof block.input?.subagent_type === 'string'
+                ? block.input.subagent_type
+                : undefined;
             const gsdMeta = isSubagentTool
-              ? classifyGsdAgent(typeof block.input?.prompt === 'string' ? block.input.prompt : '')
+              ? classifyGsdAgent(
+                  typeof block.input?.prompt === 'string' ? block.input.prompt : '',
+                  subagentType,
+                )
               : null;
             if (isSubagentTool) {
               console.log(

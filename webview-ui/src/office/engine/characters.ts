@@ -83,6 +83,10 @@ export function createCharacter(
     matrixEffect: null,
     matrixEffectTimer: 0,
     matrixEffectSeeds: [],
+    subagentPhase: null,
+    reportingTimer: 0,
+    phaseTarget: null,
+    hasReported: false,
   };
 }
 

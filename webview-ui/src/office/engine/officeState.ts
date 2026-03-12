@@ -1,4 +1,5 @@
 import {
+  ALL_DONE_WALK_DELAY_SEC,
   AUTO_ON_FACING_DEPTH,
   AUTO_ON_SIDE_DEPTH,
   CHARACTER_HIT_HALF_WIDTH,
@@ -10,6 +11,10 @@ import {
   INACTIVE_SEAT_TIMER_MIN_SEC,
   INACTIVE_SEAT_TIMER_RANGE_SEC,
   PALETTE_COUNT,
+  REPORTING_APPROACH_TILES,
+  SOCIALIZING_WANDER_PAUSE_MAX_SEC,
+  SOCIALIZING_WANDER_PAUSE_MIN_SEC,
+  TALK_BUBBLE_DURATION_SEC,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
 import { getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
@@ -21,6 +26,13 @@ import {
   layoutToTileMap,
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
+import {
+  findApproachTile,
+  findDoorwayTiles,
+  findZoneByType,
+  getSeatsInZone,
+  getZoneWalkableTiles,
+} from '../layout/zoneUtils.js';
 import type {
   Character,
   FurnitureInstance,
@@ -28,8 +40,16 @@ import type {
   PlacedFurniture,
   Seat,
   TileType as TileTypeVal,
+  Zone,
 } from '../types.js';
-import { CharacterState, Direction, MATRIX_EFFECT_DURATION, TILE_SIZE } from '../types.js';
+import {
+  CharacterState,
+  Direction,
+  MATRIX_EFFECT_DURATION,
+  SubagentPhase,
+  TILE_SIZE,
+  ZoneType,
+} from '../types.js';
 import { createCharacter, updateCharacter } from './characters.js';
 import { matrixEffectSeeds } from './matrixEffect.js';
 
@@ -52,6 +72,12 @@ export class OfficeState {
   /** Preferred seat for the first (CEO) agent */
   primarySeatId: string | null = null;
   private nextSubagentId = -1;
+  /** Cached zones from layout */
+  private zones: Zone[] = [];
+  /** Pre-computed walkable tiles in kitchen zone */
+  private kitchenWalkableTiles: Array<{ col: number; row: number }> = [];
+  /** Countdown timer before main agent walks to doorway after all sub-agents done */
+  private allDoneWalkTimer: Map<number, number> = new Map();
 
   constructor(layout?: OfficeLayout) {
     this.layout = layout || createDefaultLayout();
@@ -61,6 +87,7 @@ export class OfficeState {
     this.furniture = layoutToFurnitureInstances(this.layout.furniture);
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
     this.primarySeatId = this.layout.primarySeatId ?? null;
+    this.cacheZones();
   }
 
   /** Rebuild all derived state from a new layout. Reassigns existing characters.
@@ -73,6 +100,7 @@ export class OfficeState {
     this.rebuildFurnitureInstances();
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
     this.primarySeatId = layout.primarySeatId ?? null;
+    this.cacheZones();
 
     // Shift character positions when grid expands left/up
     if (shift && (shift.col !== 0 || shift.row !== 0)) {
@@ -180,6 +208,15 @@ export class OfficeState {
       if (!seat.assigned) return uid;
     }
     return null;
+  }
+
+  /** Cache zone data from the current layout */
+  private cacheZones(): void {
+    this.zones = this.layout.zones ?? [];
+    const kitchenZone = findZoneByType(this.zones, ZoneType.KITCHEN);
+    this.kitchenWalkableTiles = kitchenZone
+      ? getZoneWalkableTiles(kitchenZone, this.tileMap, this.blockedTiles)
+      : [];
   }
 
   /**
@@ -402,19 +439,40 @@ export class OfficeState {
     const hueShift =
       hueShiftOverride !== undefined ? hueShiftOverride : parentCh ? parentCh.hueShift : 0;
 
-    // Find the free seat closest to the parent agent
+    // Prefer seats in workspace zone, then fall back to closest seat to parent
     const parentCol = parentCh ? parentCh.tileCol : 0;
     const parentRow = parentCh ? parentCh.tileRow : 0;
     const dist = (c: number, r: number) => Math.abs(c - parentCol) + Math.abs(r - parentRow);
 
     let bestSeatId: string | null = null;
-    let bestDist = Infinity;
-    for (const [uid, seat] of this.seats) {
-      if (!seat.assigned) {
-        const d = dist(seat.seatCol, seat.seatRow);
-        if (d < bestDist) {
-          bestDist = d;
-          bestSeatId = uid;
+
+    // Try workspace zone seats first
+    const workspaceZone = findZoneByType(this.zones, ZoneType.WORKSPACE);
+    if (workspaceZone) {
+      const workspaceSeatIds = getSeatsInZone(this.seats, workspaceZone);
+      let bestDist = Infinity;
+      for (const uid of workspaceSeatIds) {
+        const seat = this.seats.get(uid)!;
+        if (!seat.assigned) {
+          const d = dist(seat.seatCol, seat.seatRow);
+          if (d < bestDist) {
+            bestDist = d;
+            bestSeatId = uid;
+          }
+        }
+      }
+    }
+
+    // Fallback: closest free seat to parent (original behavior)
+    if (!bestSeatId) {
+      let bestDist = Infinity;
+      for (const [uid, seat] of this.seats) {
+        if (!seat.assigned) {
+          const d = dist(seat.seatCol, seat.seatRow);
+          if (d < bestDist) {
+            bestDist = d;
+            bestSeatId = uid;
+          }
         }
       }
     }
@@ -447,6 +505,7 @@ export class OfficeState {
     }
     ch.isSubagent = true;
     ch.parentAgentId = parentAgentId;
+    ch.subagentPhase = SubagentPhase.WORKING;
     ch.matrixEffect = 'spawn';
     ch.matrixEffectTimer = 0;
     ch.matrixEffectSeeds = matrixEffectSeeds();
@@ -530,7 +589,7 @@ export class OfficeState {
     }
   }
 
-  /** Deactivate a specific sub-agent (set to idle wander) without removing it */
+  /** Deactivate a specific sub-agent — triggers reporting phase if zones exist, else idle */
   deactivateSubagent(parentAgentId: number, parentToolId: string): void {
     const key = `${parentAgentId}:${parentToolId}`;
     const id = this.subagentIdMap.get(key);
@@ -539,18 +598,82 @@ export class OfficeState {
       `[OfficeState] Deactivating sub-agent ${id} (parent=${parentAgentId}, tool=${parentToolId})`,
     );
     this.setAgentTool(id, null);
-    this.setAgentActive(id, false);
+
+    const ch = this.characters.get(id);
+    if (!ch) return;
+
+    // Free the sub-agent's seat
+    if (ch.seatId) {
+      const seat = this.seats.get(ch.seatId);
+      if (seat) seat.assigned = false;
+      ch.seatId = null;
+    }
+    ch.isActive = false;
+
+    // If zones exist, start reporting phase; otherwise fall back to idle
+    const ceoZone = findZoneByType(this.zones, ZoneType.CEO_ROOM);
+    const parentCh = this.characters.get(parentAgentId);
+
+    if (ceoZone && parentCh) {
+      ch.subagentPhase = SubagentPhase.REPORTING;
+      ch.hasReported = false;
+      ch.reportingTimer = 0;
+
+      // Find approach tile near parent within CEO room
+      const approachTile = findApproachTile(
+        parentCh.tileCol,
+        parentCh.tileRow,
+        REPORTING_APPROACH_TILES,
+        ceoZone,
+        this.tileMap,
+        this.blockedTiles,
+      );
+
+      if (approachTile) {
+        ch.phaseTarget = approachTile;
+        const path = findPath(
+          ch.tileCol,
+          ch.tileRow,
+          approachTile.col,
+          approachTile.row,
+          this.tileMap,
+          this.blockedTiles,
+        );
+        if (path.length > 0) {
+          ch.path = path;
+          ch.moveProgress = 0;
+          ch.state = CharacterState.WALK;
+          ch.frame = 0;
+          ch.frameTimer = 0;
+        } else {
+          // Can't path — skip to socializing
+          this.transitionToSocializing(ch);
+        }
+      } else {
+        // No approach tile — skip to socializing
+        this.transitionToSocializing(ch);
+      }
+    } else {
+      // No zones — old behavior (idle wander)
+      ch.seatTimer = -1;
+      ch.path = [];
+      ch.moveProgress = 0;
+      this.rebuildFurnitureInstances();
+    }
   }
 
-  /** Deactivate all sub-agents of a parent (set to idle wander) without removing them */
+  /** Deactivate all sub-agents of a parent — triggers reporting phase */
   deactivateAllSubagents(parentAgentId: number): void {
+    // Collect tool IDs first to avoid iterating while modifying state
+    const toolIds: string[] = [];
     for (const [, id] of this.subagentIdMap) {
       const meta = this.subagentMeta.get(id);
       if (meta && meta.parentAgentId === parentAgentId) {
-        console.log(`[OfficeState] Deactivating sub-agent ${id} (parent=${parentAgentId})`);
-        this.setAgentTool(id, null);
-        this.setAgentActive(id, false);
+        toolIds.push(meta.parentToolId);
       }
+    }
+    for (const toolId of toolIds) {
+      this.deactivateSubagent(parentAgentId, toolId);
     }
   }
 
@@ -666,16 +789,124 @@ export class OfficeState {
     }
   }
 
-  /** Dismiss bubble on click — permission: instant, waiting: quick fade */
+  showTalkBubble(id: number): void {
+    const ch = this.characters.get(id);
+    if (ch) {
+      ch.bubbleType = 'talk';
+      ch.bubbleTimer = TALK_BUBBLE_DURATION_SEC;
+    }
+  }
+
+  /** Dismiss bubble on click — permission: instant, waiting/talk: quick fade */
   dismissBubble(id: number): void {
     const ch = this.characters.get(id);
     if (!ch || !ch.bubbleType) return;
     if (ch.bubbleType === 'permission') {
       ch.bubbleType = null;
       ch.bubbleTimer = 0;
-    } else if (ch.bubbleType === 'waiting') {
+    } else if (ch.bubbleType === 'waiting' || ch.bubbleType === 'talk') {
       // Trigger immediate fade (0.3s remaining)
       ch.bubbleTimer = Math.min(ch.bubbleTimer, DISMISS_BUBBLE_FAST_FADE_SEC);
+    }
+  }
+
+  /** Transition a sub-agent from reporting to socializing (walk to kitchen) */
+  private transitionToSocializing(ch: Character): void {
+    ch.subagentPhase = SubagentPhase.SOCIALIZING;
+    ch.phaseTarget = null;
+    ch.bubbleType = null;
+    ch.bubbleTimer = 0;
+
+    // Pick a random kitchen tile to walk to
+    if (this.kitchenWalkableTiles.length > 0) {
+      const target =
+        this.kitchenWalkableTiles[Math.floor(Math.random() * this.kitchenWalkableTiles.length)];
+      const path = findPath(
+        ch.tileCol,
+        ch.tileRow,
+        target.col,
+        target.row,
+        this.tileMap,
+        this.blockedTiles,
+      );
+      if (path.length > 0) {
+        ch.path = path;
+        ch.moveProgress = 0;
+        ch.state = CharacterState.WALK;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+        return;
+      }
+    }
+
+    // No kitchen or can't path — just idle in place
+    ch.state = CharacterState.IDLE;
+    ch.frame = 0;
+    ch.frameTimer = 0;
+    ch.wanderTimer =
+      SOCIALIZING_WANDER_PAUSE_MIN_SEC +
+      Math.random() * (SOCIALIZING_WANDER_PAUSE_MAX_SEC - SOCIALIZING_WANDER_PAUSE_MIN_SEC);
+  }
+
+  /** Check if all sub-agents of a parent are in socializing phase */
+  private checkAllSubagentsDone(parentId: number): boolean {
+    for (const [, id] of this.subagentIdMap) {
+      const meta = this.subagentMeta.get(id);
+      if (meta && meta.parentAgentId === parentId) {
+        const ch = this.characters.get(id);
+        if (!ch) continue;
+        if (ch.matrixEffect === 'despawn') continue; // already despawning, skip
+        if (ch.subagentPhase !== SubagentPhase.SOCIALIZING) return false;
+      }
+    }
+    return true;
+  }
+
+  /** Walk main agent to the CEO room doorway */
+  private mainAgentWalkToDoorway(parentId: number): void {
+    const parentCh = this.characters.get(parentId);
+    if (!parentCh) return;
+
+    const ceoZone = findZoneByType(this.zones, ZoneType.CEO_ROOM);
+    if (!ceoZone) return;
+
+    const doorways = findDoorwayTiles(
+      ceoZone,
+      this.tileMap,
+      this.blockedTiles,
+      parentCh.tileCol,
+      parentCh.tileRow,
+    );
+    if (doorways.length === 0) return;
+
+    const target = doorways[0]; // closest doorway
+    const path = this.withOwnSeatUnblocked(parentCh, () =>
+      findPath(
+        parentCh.tileCol,
+        parentCh.tileRow,
+        target.col,
+        target.row,
+        this.tileMap,
+        this.blockedTiles,
+      ),
+    );
+    if (path.length > 0) {
+      parentCh.path = path;
+      parentCh.moveProgress = 0;
+      parentCh.state = CharacterState.WALK;
+      parentCh.frame = 0;
+      parentCh.frameTimer = 0;
+    }
+  }
+
+  /** Face one character toward another */
+  private faceToward(ch: Character, target: Character): void {
+    const dc = target.tileCol - ch.tileCol;
+    const dr = target.tileRow - ch.tileRow;
+    if (Math.abs(dc) >= Math.abs(dr)) {
+      ch.dir = dc >= 0 ? Direction.RIGHT : Direction.LEFT;
+    } else {
+      ch.dir = dr >= 0 ? Direction.DOWN : Direction.UP;
     }
   }
 
@@ -699,13 +930,59 @@ export class OfficeState {
         continue; // skip normal FSM while effect is active
       }
 
+      // Sub-agent reporting phase logic (before normal FSM)
+      if (ch.isSubagent && ch.subagentPhase === SubagentPhase.REPORTING) {
+        // Check if sub-agent has arrived at approach tile (path empty, not walking)
+        if (ch.path.length === 0 && ch.state !== CharacterState.WALK && !ch.hasReported) {
+          ch.hasReported = true;
+          ch.reportingTimer = TALK_BUBBLE_DURATION_SEC;
+          // Show talk bubbles on both sub-agent and parent
+          this.showTalkBubble(ch.id);
+          if (ch.parentAgentId !== null) {
+            this.showTalkBubble(ch.parentAgentId);
+            // Face sub-agent toward parent
+            const parentCh = this.characters.get(ch.parentAgentId);
+            if (parentCh) {
+              this.faceToward(ch, parentCh);
+            }
+          }
+          ch.state = CharacterState.IDLE;
+          ch.frame = 0;
+          ch.frameTimer = 0;
+        }
+        // Tick reporting timer
+        if (ch.hasReported) {
+          ch.reportingTimer -= dt;
+          if (ch.reportingTimer <= 0) {
+            // Reporting done — transition to socializing
+            this.transitionToSocializing(ch);
+            // Check if all sub-agents are now done
+            if (ch.parentAgentId !== null && this.checkAllSubagentsDone(ch.parentAgentId)) {
+              // Start delayed doorway walk for parent
+              if (!this.allDoneWalkTimer.has(ch.parentAgentId)) {
+                this.allDoneWalkTimer.set(ch.parentAgentId, ALL_DONE_WALK_DELAY_SEC);
+                this.showWaitingBubble(ch.parentAgentId);
+              }
+            }
+          }
+        }
+      }
+
+      // Choose walkable tiles: socializing sub-agents use kitchen zone
+      const wanderTiles =
+        ch.isSubagent &&
+        ch.subagentPhase === SubagentPhase.SOCIALIZING &&
+        this.kitchenWalkableTiles.length > 0
+          ? this.kitchenWalkableTiles
+          : this.walkableTiles;
+
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+        updateCharacter(ch, dt, wanderTiles, this.seats, this.tileMap, this.blockedTiles),
       );
 
-      // Tick bubble timer for waiting bubbles
-      if (ch.bubbleType === 'waiting') {
+      // Tick bubble timer for waiting and talk bubbles
+      if (ch.bubbleType === 'waiting' || ch.bubbleType === 'talk') {
         ch.bubbleTimer -= dt;
         if (ch.bubbleTimer <= 0) {
           ch.bubbleType = null;
@@ -713,6 +990,18 @@ export class OfficeState {
         }
       }
     }
+
+    // Tick allDoneWalkTimer for parents
+    for (const [parentId, timer] of this.allDoneWalkTimer) {
+      const remaining = timer - dt;
+      if (remaining <= 0) {
+        this.allDoneWalkTimer.delete(parentId);
+        this.mainAgentWalkToDoorway(parentId);
+      } else {
+        this.allDoneWalkTimer.set(parentId, remaining);
+      }
+    }
+
     // Remove characters that finished despawn
     for (const id of toDelete) {
       this.characters.delete(id);
