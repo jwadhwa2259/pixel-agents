@@ -28,10 +28,11 @@
 > - **Workspace-first spawning** — sub-agents prefer workspace zone seats, avoiding CEO room and lounge areas
 > - **Sub-agent socialization** — after reporting, sub-agents chat with each other (walk toward + talk bubbles)
 > - **CEO primary seat** — main agent gets a persistent primary seat; sub-agents persist across turns
+> - **Background agent awareness** — main agent and executor sub-agents stay active (typing) while background agents churn, instead of incorrectly appearing idle
 > - **Webview persistence fix** — retain context when hidden (prevents agents disappearing on tab switch)
 > - **Agent tool detection** — updated for Claude Code's rename from Task to Agent tool
 >
-> **Install:** Download the `.vsix` from [Releases](https://github.com/jwadhwa2259/pixel-agents-GSD/releases/latest), then run `code --install-extension pixel-agents-1.0.3.vsix`
+> **Install:** Download the `.vsix` from [Releases](https://github.com/jwadhwa2259/pixel-agents-GSD/releases/latest), then run `code --install-extension pixel-agents-1.0.4.vsix`
 
 ---
 
