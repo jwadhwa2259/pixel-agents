@@ -24,12 +24,15 @@
 >
 > - **GSD sub-agent role labels** — sub-agents (planner, researcher, executor, etc.) display their role as a colored label
 > - **Distinct sub-agent colors** — each GSD role type gets a unique accent color for visual identification
-> - **Zone-based sub-agent lifecycle** — sub-agents spawn in workspace, walk to report zone, then socialize
+> - **Zone-based sub-agent lifecycle** — sub-agents spawn in workspace, report to CEO, then socialize in common areas
+> - **CEO room enforcement** — sub-agents are restricted from entering the CEO room (wandering + pathfinding)
+> - **Sub-agent socialization** — after reporting, sub-agents chat with each other (walk toward + talk bubbles)
+> - **Spread-out spawning** — sub-agents spawn at random desks/chairs outside the CEO room (no clustering)
 > - **CEO primary seat** — main agent gets a persistent primary seat; sub-agents persist across turns
 > - **Webview persistence fix** — retain context when hidden (prevents agents disappearing on tab switch)
 > - **Agent tool detection** — updated for Claude Code's rename from Task to Agent tool
 >
-> **Install:** Download the `.vsix` from [Releases](https://github.com/jwadhwa2259/pixel-agents-GSD/releases/latest), then run `code --install-extension pixel-agents-1.0.2.vsix`
+> **Install:** Download the `.vsix` from [Releases](https://github.com/jwadhwa2259/pixel-agents-GSD/releases/latest), then run `code --install-extension pixel-agents-1.0.3.vsix`
 
 ---
 
