@@ -491,28 +491,40 @@ export class OfficeState {
     const hueShift =
       hueShiftOverride !== undefined ? hueShiftOverride : parentCh ? parentCh.hueShift : 0;
 
-    // Collect all unassigned seats outside the CEO room, then pick randomly
+    // Pick a seat for the sub-agent: workspace zone → non-CEO zone → any free
     let bestSeatId: string | null = null;
     const ceoZone = findZoneByType(this.zones, ZoneType.CEO_ROOM);
+    const workspaceZone = findZoneByType(this.zones, ZoneType.WORKSPACE);
+
+    const workspaceSeatIds: string[] = [];
     const nonCeoSeatIds: string[] = [];
     for (const [uid, seat] of this.seats) {
       if (seat.assigned) continue;
-      if (
+      const inCeo =
         ceoZone &&
         seat.seatCol >= ceoZone.minCol &&
         seat.seatCol <= ceoZone.maxCol &&
         seat.seatRow >= ceoZone.minRow &&
-        seat.seatRow <= ceoZone.maxRow
-      ) {
-        continue; // skip CEO room seats
-      }
+        seat.seatRow <= ceoZone.maxRow;
+      if (inCeo) continue;
       nonCeoSeatIds.push(uid);
-    }
-    if (nonCeoSeatIds.length > 0) {
-      bestSeatId = nonCeoSeatIds[Math.floor(Math.random() * nonCeoSeatIds.length)];
+      if (
+        workspaceZone &&
+        seat.seatCol >= workspaceZone.minCol &&
+        seat.seatCol <= workspaceZone.maxCol &&
+        seat.seatRow >= workspaceZone.minRow &&
+        seat.seatRow <= workspaceZone.maxRow
+      ) {
+        workspaceSeatIds.push(uid);
+      }
     }
 
-    // Fallback: any unassigned seat (if all non-CEO seats are taken)
+    // Prefer workspace seats, then any non-CEO seat, then any free seat
+    if (workspaceSeatIds.length > 0) {
+      bestSeatId = workspaceSeatIds[Math.floor(Math.random() * workspaceSeatIds.length)];
+    } else if (nonCeoSeatIds.length > 0) {
+      bestSeatId = nonCeoSeatIds[Math.floor(Math.random() * nonCeoSeatIds.length)];
+    }
     if (!bestSeatId) {
       const allFree: string[] = [];
       for (const [uid, seat] of this.seats) {
