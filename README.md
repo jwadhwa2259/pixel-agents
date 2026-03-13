@@ -10,18 +10,28 @@
 
 <div align="center" style="margin-top: 25px;">
 
-[![vscode-version](https://img.shields.io/visual-studio-marketplace/v/pablodelucca.pixel-agents?logo=visualstudiocode&color=0183ff)](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents)
-[![installs](https://img.shields.io/visual-studio-marketplace/i/pablodelucca.pixel-agents?color=0183ff&style=flat)](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents)
-[![stars](https://img.shields.io/github/stars/pablodelucca/pixel-agents?logo=github&color=0183ff&style=flat)](https://github.com/pablodelucca/pixel-agents/stargazers)
 [![license](https://img.shields.io/github/license/pablodelucca/pixel-agents?color=0183ff&style=flat)](https://github.com/pablodelucca/pixel-agents/blob/main/LICENSE)
 
 </div>
 
 <div align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents">🛒 VS Code Marketplace</a> • <a href="https://github.com/pablodelucca/pixel-agents/discussions">💬 Discussions</a> • <a href="https://github.com/pablodelucca/pixel-agents/issues">🐛 Issues</a> • <a href="CONTRIBUTING.md">🤝 Contributing</a>
+<a href="https://github.com/jwadhwa2259/pixel-agents-GSD/releases/latest">📦 Download .vsix</a> • <a href="https://github.com/pablodelucca/pixel-agents">⬆️ Upstream Repo</a> • <a href="https://github.com/pablodelucca/pixel-agents/discussions">💬 Discussions</a>
 </div>
 
 <br/>
+
+> **This is a fork of [pablodelucca/pixel-agents](https://github.com/pablodelucca/pixel-agents)** with the following additions:
+>
+> - **GSD sub-agent role labels** — sub-agents (planner, researcher, executor, etc.) display their role as a colored label
+> - **Distinct sub-agent colors** — each GSD role type gets a unique accent color for visual identification
+> - **Zone-based sub-agent lifecycle** — sub-agents spawn in workspace, walk to report zone, then socialize
+> - **CEO primary seat** — main agent gets a persistent primary seat; sub-agents persist across turns
+> - **Webview persistence fix** — retain context when hidden (prevents agents disappearing on tab switch)
+> - **Agent tool detection** — updated for Claude Code's rename from Task to Agent tool
+>
+> **Install:** Download the `.vsix` from [Releases](https://github.com/jwadhwa2259/pixel-agents-GSD/releases/latest), then run `code --install-extension pixel-agents-1.0.2.vsix`
+
+---
 
 Pixel Agents turns multi-agent AI systems into something you can actually see and manage. Each agent becomes a character in a pixel art office. They walk around, sit at their desk, and visually reflect what they are doing — typing when writing code, reading when searching files, waiting when it needs your attention.
 
