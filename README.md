@@ -24,11 +24,12 @@
 >
 > - **GSD sub-agent role labels** — sub-agents (planner, researcher, executor, etc.) display their role as a colored label
 > - **Distinct sub-agent colors** — each GSD role type gets a unique accent color for visual identification
-> - **Zone-based sub-agent lifecycle** — sub-agents spawn in workspace, report to CEO, then socialize in common areas
+> - **Zone-based sub-agent lifecycle** — sub-agents spawn in workspace, report to parent agent, then socialize in common areas
 > - **Workspace-first spawning** — sub-agents prefer workspace zone seats, avoiding CEO room and lounge areas
 > - **Sub-agent socialization** — after reporting, sub-agents chat with each other (walk toward + talk bubbles)
 > - **CEO primary seat** — main agent gets a persistent primary seat; sub-agents persist across turns
 > - **Background agent awareness** — main agent and executor sub-agents stay active (typing) while background agents churn, instead of incorrectly appearing idle
+> - **Reporting lifecycle fix** — sub-agents now reliably walk to parent and show talk bubbles when done, then stay out of CEO room
 > - **Webview persistence fix** — retain context when hidden (prevents agents disappearing on tab switch)
 > - **Agent tool detection** — updated for Claude Code's rename from Task to Agent tool
 >
