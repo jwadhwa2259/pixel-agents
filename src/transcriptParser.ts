@@ -179,11 +179,17 @@ export function processTranscriptLine(
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
                 if (isBackgroundTool) {
-                  // Background agent — keep sub-agent active (it's still running)
+                  // Background agent completed — trigger reporting phase
+                  // Keep backgroundToolIds so parent stays active during churning
                   // Keep gsdToolMeta for status display
                   console.log(
-                    `[Pixel Agents] Agent ${agentId} background tool done (agent still running): ${completedToolId}`,
+                    `[Pixel Agents] Agent ${agentId} background tool done → reporting: ${completedToolId}`,
                   );
+                  webview?.postMessage({
+                    type: 'subagentClear',
+                    id: agentId,
+                    parentToolId: completedToolId,
+                  });
                 } else {
                   // Foreground agent completed — deactivate sub-agent
                   agent.gsdToolMeta.delete(completedToolId);

@@ -369,7 +369,7 @@ export function useExtensionMessages(
           }
           return { ...prev, [id]: next };
         });
-        // Deactivate sub-agent character (keep visible, idle wander)
+        // Deactivate sub-agent character → triggers reporting phase (walk to parent, talk bubble)
         console.log(
           `[Webview] subagentClear: deactivating sub-agent for agent ${id}, tool ${parentToolId}`,
         );

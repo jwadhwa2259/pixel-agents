@@ -645,9 +645,6 @@ export class OfficeState {
     const key = `${parentAgentId}:${parentToolId}`;
     const id = this.subagentIdMap.get(key);
     if (id === undefined) return;
-    console.log(
-      `[OfficeState] Deactivating sub-agent ${id} (parent=${parentAgentId}, tool=${parentToolId})`,
-    );
     this.setAgentTool(id, null);
 
     const ch = this.characters.get(id);
@@ -678,8 +675,8 @@ export class OfficeState {
     ch.hasReported = false;
     ch.reportingTimer = 0;
 
-    // Find approach tile near parent — within CEO zone if available, else anywhere
-    const approachTile = ceoZone
+    // Find approach tile near parent — try CEO zone first, then anywhere nearby
+    let approachTile = ceoZone
       ? findApproachTile(
           parentCh.tileCol,
           parentCh.tileRow,
@@ -688,13 +685,16 @@ export class OfficeState {
           this.tileMap,
           this.blockedTiles,
         )
-      : findNearbyWalkableTile(
-          parentCh.tileCol,
-          parentCh.tileRow,
-          REPORTING_APPROACH_TILES,
-          this.tileMap,
-          this.blockedTiles,
-        );
+      : null;
+    if (!approachTile) {
+      approachTile = findNearbyWalkableTile(
+        parentCh.tileCol,
+        parentCh.tileRow,
+        REPORTING_APPROACH_TILES,
+        this.tileMap,
+        this.blockedTiles,
+      );
+    }
 
     if (approachTile) {
       ch.phaseTarget = approachTile;
@@ -723,7 +723,8 @@ export class OfficeState {
   }
 
   /** Deactivate all sub-agents of a parent — triggers reporting phase.
-   *  Skips sub-agents still in WORKING phase (their subagentClear hasn't arrived yet). */
+   *  Only deactivates sub-agents still in WORKING phase (triggers their reporting).
+   *  Skips sub-agents already deactivated (REPORTING/SOCIALIZING). */
   deactivateAllSubagents(parentAgentId: number): void {
     // Collect tool IDs first to avoid iterating while modifying state
     const toolIds: string[] = [];
@@ -731,7 +732,8 @@ export class OfficeState {
       const meta = this.subagentMeta.get(id);
       if (meta && meta.parentAgentId === parentAgentId) {
         const ch = this.characters.get(id);
-        if (ch && ch.subagentPhase === SubagentPhase.WORKING) continue;
+        // Skip sub-agents already deactivated (reporting or socializing)
+        if (ch && ch.subagentPhase !== SubagentPhase.WORKING) continue;
         toolIds.push(meta.parentToolId);
       }
     }
